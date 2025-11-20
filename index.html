@@ -8,13 +8,2534 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #root { width: 100%; height: 100vh; }
+    </style>
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel" src="./NFL_Gestion.jsx"></script>
     <script type="text/babel">
+import React, { useState, useEffect } from 'react';
+
+export default function LaboGestion() {
+  const [currentScreen, setCurrentScreen] = useState('login');
+  const [password, setPassword] = useState('');
+  const [showError, setShowError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedCommande, setSelectedCommande] = useState(null);
+  
+  // Employé connecté
+  const [currentUser, setCurrentUser] = useState(null);
+  
+  // Admin
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminError, setShowAdminError] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeleteError, setShowDeleteError] = useState(false);
+  
+  // Filtres commandes
+  const [commandeFilter, setCommandeFilter] = useState('all'); // 'all', ou un statut spécifique
+  const [commandeTypeFilter, setCommandeTypeFilter] = useState('all');
+  const [commandeFormatFilter, setCommandeFormatFilter] = useState('all');
+  
+  // Onglet admin
+  const [adminTab, setAdminTab] = useState('travaux');
+  
+  // Historique des scans
+  const [scanHistory, setScanHistory] = useState([]);
+  const [scanInput, setScanInput] = useState('');
+  
+  // Poste de scan sélectionné
+  const [selectedPoste, setSelectedPoste] = useState(null); // 'comptoir', 'developpement', 'scan'
+  
+  // Formulaire nouveau client
+  const [newClient, setNewClient] = useState({
+    prenom: '',
+    nom: '',
+    email: '',
+    telephone: ''
+  });
+  
+  // Formulaire nouvelle commande
+  const [newCommande, setNewCommande] = useState({
+    clientId: '',
+    type: '',
+    format: '',
+    quantite: 1,
+    details: '',
+    process: '',
+    exportFormat: ''
+  });
+  
+  // Lignes de la commande en cours
+  const [commandeLines, setCommandeLines] = useState([]);
+  
+  // Liste des employés
+  const [employes, setEmployes] = useState([
+    { id: 1, prenom: 'Marie', nom: 'DUPONT', code: '1234', role: 'Employé', actif: true },
+    { id: 2, prenom: 'Jean', nom: 'MARTIN', code: '5678', role: 'Employé', actif: true },
+    { id: 3, prenom: 'Sophie', nom: 'BERNARD', code: '9012', role: 'Manager', actif: true }
+  ]);
+  
+  // Modal ajout/édition employé
+  const [showEmployeModal, setShowEmployeModal] = useState(false);
+  const [editingEmploye, setEditingEmploye] = useState(null);
+  const [newEmploye, setNewEmploye] = useState({ prenom: '', nom: '', code: '', role: 'Employé' });
+  
+  const ADMIN_PASSWORD = 'admin2025';
+  
+  // Statuts de commande dans l'ordre
+  const STATUTS_COMMANDE = ['Reçue', 'Développement', 'Scan', 'Archives', 'Prête', 'Récupérée'];
+  
+  // Configuration NAS
+  const [nasPath, setNasPath] = useState('/Volumes/NAS');
+  const [clientsFilePath, setClientsFilePath] = useState('');
+  const [commandesFilePath, setCommandesFilePath] = useState('');
+  
+  // Types de travaux et formats (modifiables dans admin)
+  const [typesTravauxList, setTypesTravauxList] = useState([
+    'Scan',
+    'Développement',
+    'Développement + Scan'
+  ]);
+  
+  const [formatsList, setFormatsList] = useState([
+    '135',
+    '120'
+  ]);
+  
+  // Raccourci clavier pour accès admin (Cmd+Shift+E+C)
+  useEffect(() => {
+    let keysPressed = [];
+    
+    const handleKeyDown = (e) => {
+      keysPressed.push(e.key.toLowerCase());
+      
+      if (keysPressed.length > 4) {
+        keysPressed = keysPressed.slice(-4);
+      }
+      
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+        const lastTwo = keysPressed.slice(-2).join('');
+        if (lastTwo === 'ec' || lastTwo === 'ce') {
+          e.preventDefault();
+          setCurrentScreen('adminLogin');
+        }
+      }
+    };
+    
+    const handleKeyUp = () => {
+      setTimeout(() => {
+        keysPressed = [];
+      }, 1000);
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+  
+  // Données
+  const [clients, setClients] = useState([
+    { id: 1, nom: 'BOND', prenom: 'James', email: 'jamesbond@gmail.com', telephone: '0660673245', notes: 'Client régulier - Préfère les scans haute résolution' },
+    { id: 2, nom: 'TOULOUSE', prenom: 'Apolline', email: 'apolline.toulouse@email.fr', telephone: '0612345678', notes: '' },
+    { id: 3, nom: 'SOZE', prenom: 'Kaiser', email: 'kaiser.soze@gmail.com', telephone: '0698765432', notes: '' }
+  ]);
+  
+  const [commandes, setCommandes] = useState([
+    { 
+      id: '#3247', 
+      clientId: 1, 
+      type: 'Développement + Scan', 
+      format: '120',
+      quantite: 2,
+      statut: 'Développement',
+      dateCreation: '15/01/2025',
+      details: 'Pellicule 120 - Développement + Scan haute résolution'
+    },
+    { 
+      id: '#3248', 
+      clientId: 1, 
+      type: 'Développement', 
+      format: '135',
+      quantite: 3,
+      statut: 'Reçue',
+      dateCreation: '16/01/2025',
+      details: 'Pellicule 35mm couleur C-41'
+    },
+    { 
+      id: '#3249', 
+      clientId: 1, 
+      type: 'Scan uniquement', 
+      format: '120',
+      quantite: 1,
+      statut: 'Récupérée',
+      dateCreation: '10/01/2025',
+      details: 'Scan haute résolution 120 N&B'
+    },
+    { 
+      id: '#3250', 
+      clientId: 1, 
+      type: 'Développement + Tirage', 
+      format: '135',
+      quantite: 2,
+      statut: 'Prête',
+      dateCreation: '17/01/2025',
+      details: 'Dev + Tirage 10x15 - Portra 400'
+    }
+  ]);
+  
+  const handleLogin = () => {
+    // Chercher un employé avec ce code
+    const employe = employes.find(e => e.code === password && e.actif);
+    
+    if (employe) {
+      setCurrentUser(employe);
+      setCurrentScreen('menu');
+      setPassword('');
+    } else {
+      setShowError(true);
+      setPassword('');
+      setTimeout(() => setShowError(false), 3000);
+    }
+  };
+  
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setCurrentScreen('login');
+  };
+  
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleLogin();
+    }
+  };
+  
+  const performSearch = (query) => {
+    setSearchQuery(query);
+    
+    if (query.trim() === '') {
+      setSearchResults([]);
+      return;
+    }
+    
+    const q = query.toLowerCase();
+    let results = [];
+    
+    clients.forEach(client => {
+      if (
+        client.nom.toLowerCase().includes(q) ||
+        client.prenom.toLowerCase().includes(q) ||
+        client.email.toLowerCase().includes(q) ||
+        client.telephone.includes(q)
+      ) {
+        results.push({
+          type: 'client',
+          id: client.id,
+          nom: `${client.prenom} ${client.nom}`,
+          detail: client.email,
+          data: client
+        });
+      }
+    });
+    
+    commandes.forEach(commande => {
+      if (commande.id.toLowerCase().includes(q) || commande.id.replace('#', '').includes(q)) {
+        const client = clients.find(c => c.id === commande.clientId);
+        results.push({
+          type: 'commande',
+          id: commande.id,
+          nom: commande.id,
+          detail: client ? `${client.prenom} ${client.nom} - ${commande.type}` : commande.type,
+          data: commande,
+          client: client
+        });
+      }
+    });
+    
+    setSearchResults(results);
+  };
+  
+  const openResult = (result) => {
+    if (result.type === 'client') {
+      setSelectedClient(result.data);
+      setCurrentScreen('client');
+    } else if (result.type === 'commande') {
+      setSelectedCommande(result.data);
+      setSelectedClient(result.client);
+      setCurrentScreen('commande');
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+  
+  const getClientCommandes = (clientId) => {
+    return commandes.filter(c => c.clientId === clientId);
+  };
+  
+  const handleAddClient = () => {
+    if (!newClient.prenom || !newClient.nom) {
+      alert('Veuillez remplir au moins le prénom et le nom');
+      return;
+    }
+    
+    const newId = clients.length > 0 ? Math.max(...clients.map(c => c.id)) + 1 : 1;
+    
+    const clientToAdd = {
+      id: newId,
+      ...newClient,
+      nom: newClient.nom.toUpperCase()
+    };
+    
+    setClients([...clients, clientToAdd]);
+    setNewClient({ prenom: '', nom: '', email: '', telephone: '' });
+    setSelectedClient(clientToAdd);
+    setCurrentScreen('client');
+  };
+  
+  const addLineToCommande = () => {
+    if (!newCommande.type || !newCommande.format || !newCommande.process) {
+      return;
+    }
+    
+    const needsExportFormat = newCommande.type === 'Scan' || newCommande.type === 'Développement + Scan';
+    if (needsExportFormat && !newCommande.exportFormat) {
+      return;
+    }
+    
+    const newLine = {
+      type: newCommande.type,
+      format: newCommande.format,
+      quantite: parseInt(newCommande.quantite) || 1,
+      process: newCommande.process,
+      exportFormat: newCommande.exportFormat || ''
+    };
+    
+    setCommandeLines([...commandeLines, newLine]);
+    setNewCommande({
+      ...newCommande,
+      type: '',
+      format: '',
+      quantite: 1,
+      process: '',
+      exportFormat: ''
+    });
+  };
+  
+  const removeLineFromCommande = (index) => {
+    setCommandeLines(commandeLines.filter((_, i) => i !== index));
+  };
+  
+  const handleValidateCommande = () => {
+    if (commandeLines.length === 0) {
+      alert('Ajoutez au moins un article à la commande');
+      return;
+    }
+    
+    const lastNum = commandes.length > 0 
+      ? Math.max(...commandes.map(c => parseInt(c.id.replace('#', '')))) 
+      : 3246;
+    const newId = `#${lastNum + 1}`;
+    
+    const today = new Date();
+    const dateStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+    
+    const detailsStr = commandeLines.map(line => 
+      `${line.quantite}x ${line.type} ${line.format} (${line.process === 'couleur' ? 'C-41' : 'N&B'})${line.exportFormat ? ' - ' + line.exportFormat.toUpperCase() : ''}`
+    ).join(' + ');
+    
+    const totalQuantite = commandeLines.reduce((sum, line) => sum + line.quantite, 0);
+    
+    const commandeToAdd = {
+      id: newId,
+      clientId: parseInt(newCommande.clientId),
+      type: commandeLines.length === 1 ? commandeLines[0].type : 'Multiple',
+      format: commandeLines.length === 1 ? commandeLines[0].format : 'Multiple',
+      quantite: totalQuantite,
+      statut: 'Reçue',
+      dateCreation: dateStr,
+      details: detailsStr,
+      lines: commandeLines
+    };
+    
+    setCommandes([...commandes, commandeToAdd]);
+    setNewCommande({ clientId: '', type: '', format: '', quantite: 1, details: '', process: '', exportFormat: '' });
+    setCommandeLines([]);
+    setSelectedCommande(commandeToAdd);
+    setSelectedClient(clients.find(c => c.id === parseInt(newCommande.clientId)));
+    setCurrentScreen('commande');
+  };
+  
+  const handleAddCommande = () => {
+    handleValidateCommande();
+  };
+  
+  const handleAdminLogin = () => {
+    if (adminPassword === ADMIN_PASSWORD) {
+      setCurrentScreen('admin');
+      setAdminPassword('');
+    } else {
+      setShowAdminError(true);
+      setAdminPassword('');
+      setTimeout(() => setShowAdminError(false), 3000);
+    }
+  };
+  
+  const handleDeleteClient = () => {
+    if (deletePassword === ADMIN_PASSWORD) {
+      const updatedClients = clients.filter(c => c.id !== selectedClient.id);
+      setClients(updatedClients);
+      setShowDeleteModal(false);
+      setDeletePassword('');
+      setSelectedClient(null);
+      setCurrentScreen('menu');
+    } else {
+      setShowDeleteError(true);
+      setDeletePassword('');
+      setTimeout(() => setShowDeleteError(false), 3000);
+    }
+  };
+  
+  const exportClientsCSV = () => {
+    const headers = ['ID', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Notes'];
+    const rows = clients.map(c => [c.id, c.prenom, c.nom, c.email, c.telephone, c.notes || '']);
+    const csv = [headers, ...rows].map(row => row.join(';')).join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'clients_export.csv';
+    link.click();
+  };
+  
+  const exportCommandesCSV = () => {
+    const headers = ['ID', 'Client ID', 'Type', 'Format', 'Quantité', 'Statut', 'Date', 'Détails'];
+    const rows = commandes.map(c => [c.id, c.clientId, c.type, c.format, c.quantite, c.statut, c.dateCreation, c.details]);
+    const csv = [headers, ...rows].map(row => row.join(';')).join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'commandes_export.csv';
+    link.click();
+  };
+  
+  // Page Login
+  if (currentScreen === 'login') {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 relative" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex flex-col items-center gap-8 w-full max-w-sm">
+          <h1 className="text-2xl font-semibold text-gray-900 lowercase">mot de passe</h1>
+          
+          <div className="w-full flex flex-col gap-5">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setShowError(false);
+              }}
+              onKeyPress={handleKeyPress}
+              placeholder="••••••"
+              className="w-full px-5 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 text-center tracking-widest focus:outline-none focus:border-gray-900 transition-all"
+              autoFocus
+            />
+            
+            <div className={`text-sm font-medium text-red-500 text-center transition-opacity ${showError ? 'opacity-100' : 'opacity-0'}`}>
+              mot de passe incorrect
+            </div>
+            
+            <button
+              onClick={handleLogin}
+              className="w-full px-5 py-4 text-base font-bold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-800"
+            >
+              entrer
+            </button>
+          </div>
+        </div>
+        
+        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2">
+          <div className="text-sm font-bold text-gray-400 tracking-wider uppercase">NFL_Gestion</div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Admin Login
+  if (currentScreen === 'adminLogin') {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-8 relative" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex flex-col items-center gap-8 w-full max-w-sm">
+          <div className="flex flex-col items-center gap-2">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="#EF4444">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+            </svg>
+            <h1 className="text-2xl font-semibold text-white lowercase">accès admin</h1>
+          </div>
+          
+          <div className="w-full flex flex-col gap-5">
+            <input
+              type="password"
+              value={adminPassword}
+              onChange={(e) => {
+                setAdminPassword(e.target.value);
+                setShowAdminError(false);
+              }}
+              onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+              placeholder="••••••"
+              className="w-full px-5 py-4 text-base font-medium border-2 border-gray-700 rounded-xl bg-gray-800 text-white text-center tracking-widest focus:outline-none focus:border-red-500 transition-all"
+              autoFocus
+            />
+            
+            <div className={`text-sm font-medium text-red-500 text-center transition-opacity ${showAdminError ? 'opacity-100' : 'opacity-0'}`}>
+              mot de passe incorrect
+            </div>
+            
+            <button
+              onClick={handleAdminLogin}
+              className="w-full px-5 py-4 text-base font-bold bg-red-500 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-red-600"
+            >
+              accéder
+            </button>
+            
+            <button
+              onClick={() => {
+                setAdminPassword('');
+                setCurrentScreen('login');
+              }}
+              className="w-full px-5 py-3 text-sm font-semibold bg-transparent text-gray-500 border-none rounded-full cursor-pointer lowercase transition-all hover:text-gray-300"
+            >
+              annuler
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Admin
+  if (currentScreen === 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        {/* Header */}
+        <div className="flex items-center gap-4 p-6 pb-4">
+          <button
+            onClick={() => setCurrentScreen('login')}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#FFFFFF">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-white uppercase tracking-wide">Administration</h1>
+        </div>
+        
+        {/* Onglets */}
+        <div className="flex gap-2 px-6 mb-4">
+          <button
+            onClick={() => setAdminTab('travaux')}
+            className={`flex-1 px-3 py-3 text-xs font-bold rounded-xl cursor-pointer transition-all border-none ${
+              adminTab === 'travaux'
+                ? 'bg-white text-gray-900'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Travaux
+          </button>
+          <button
+            onClick={() => setAdminTab('employes')}
+            className={`flex-1 px-3 py-3 text-xs font-bold rounded-xl cursor-pointer transition-all border-none ${
+              adminTab === 'employes'
+                ? 'bg-white text-gray-900'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Employés
+          </button>
+          <button
+            onClick={() => setAdminTab('parametres')}
+            className={`flex-1 px-3 py-3 text-xs font-bold rounded-xl cursor-pointer transition-all border-none ${
+              adminTab === 'parametres'
+                ? 'bg-white text-gray-900'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Paramètres
+          </button>
+        </div>
+        
+        {/* Contenu des onglets */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="flex flex-col gap-6 w-full max-w-md mx-auto">
+            
+            {/* Onglet Travaux & Tarifs */}
+            {adminTab === 'travaux' && (
+              <>
+                {/* Dashboard rapide */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl">
+                    <div className="text-3xl font-extrabold text-white">{clients.length}</div>
+                    <div className="text-xs font-semibold text-blue-200 uppercase">Clients</div>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl">
+                    <div className="text-3xl font-extrabold text-white">{commandes.length}</div>
+                    <div className="text-xs font-semibold text-purple-200 uppercase">Commandes</div>
+                  </div>
+                </div>
+                
+                {/* Types de travaux */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Types de travaux</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl">
+                    <div className="flex flex-col gap-2 mb-3">
+                      {typesTravauxList.map((type, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg group">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-white">{type}</span>
+                            <span className="text-xs text-gray-400">Prix à configurer</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                // TODO: Ouvrir modal édition prix
+                              }}
+                              className="p-1.5 bg-gray-600 border-none rounded-lg cursor-pointer text-gray-300 hover:text-white hover:bg-gray-500 transition-all"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => setTypesTravauxList(typesTravauxList.filter((_, i) => i !== index))}
+                              className="p-1.5 bg-transparent border-none cursor-pointer text-gray-500 hover:text-red-400 transition-all"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newType = prompt('Nouveau type de travail :');
+                        if (newType) setTypesTravauxList([...typesTravauxList, newType]);
+                      }}
+                      className="w-full px-3 py-3 text-sm font-semibold bg-transparent text-gray-400 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500 hover:text-gray-300 transition-all"
+                    >
+                      + Ajouter un type de travail
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Formats pellicule */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Formats pellicule</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl">
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {formatsList.map((format, index) => (
+                        <div key={index} className="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded-lg group">
+                          <span className="text-sm font-bold text-white">{format}</span>
+                          <button
+                            onClick={() => setFormatsList(formatsList.filter((_, i) => i !== index))}
+                            className="p-0.5 bg-transparent border-none cursor-pointer text-gray-500 hover:text-red-400 transition-opacity"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newFormat = prompt('Nouveau format :');
+                        if (newFormat) setFormatsList([...formatsList, newFormat]);
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-transparent text-gray-400 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500 hover:text-gray-300 transition-all"
+                    >
+                      + Ajouter un format
+                    </button>
+                  </div>
+                </div>
+                
+                {/* TVA */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">TVA</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-400">Taux de TVA</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          defaultValue="20"
+                          className="w-16 px-2 py-1 text-sm font-bold text-center border-none rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-bold text-white">%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Actions rapides */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Export</h2>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={exportClientsCSV}
+                      className="p-4 bg-gray-800 rounded-xl cursor-pointer hover:bg-gray-750 transition-all flex flex-col items-center gap-2 border-none"
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="#10B981">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                      </svg>
+                      <span className="text-xs font-semibold text-white">Clients</span>
+                    </button>
+                    <button
+                      onClick={exportCommandesCSV}
+                      className="p-4 bg-gray-800 rounded-xl cursor-pointer hover:bg-gray-750 transition-all flex flex-col items-center gap-2 border-none"
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="#8B5CF6">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                      </svg>
+                      <span className="text-xs font-semibold text-white">Commandes</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {/* Onglet Employés */}
+            {adminTab === 'employes' && (
+              <>
+                {/* Liste des employés */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employés ({employes.length})</h2>
+                    <button
+                      onClick={() => {
+                        setEditingEmploye(null);
+                        setNewEmploye({ prenom: '', nom: '', code: '', role: 'Employé' });
+                        setShowEmployeModal(true);
+                      }}
+                      className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white border-none rounded-lg cursor-pointer hover:bg-blue-700 transition-all"
+                    >
+                      + Ajouter
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {employes.map((employe) => (
+                      <div key={employe.id} className="p-4 bg-gray-800 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${employe.actif ? 'bg-green-600' : 'bg-gray-600'}`}>
+                              <span className="text-white font-bold text-sm">{employe.prenom[0]}{employe.nom[0]}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-white">{employe.prenom} {employe.nom}</span>
+                              <span className="text-xs text-gray-400">{employe.role}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-gray-500 bg-gray-700 px-2 py-1 rounded">{employe.code}</span>
+                            <button
+                              onClick={() => {
+                                setEditingEmploye(employe);
+                                setNewEmploye({ 
+                                  prenom: employe.prenom, 
+                                  nom: employe.nom, 
+                                  code: employe.code, 
+                                  role: employe.role 
+                                });
+                                setShowEmployeModal(true);
+                              }}
+                              className="p-1.5 bg-gray-700 border-none rounded-lg cursor-pointer text-gray-300 hover:text-white hover:bg-gray-600 transition-all"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => {
+                                const updated = employes.map(e => 
+                                  e.id === employe.id ? {...e, actif: !e.actif} : e
+                                );
+                                setEmployes(updated);
+                              }}
+                              className={`p-1.5 border-none rounded-lg cursor-pointer transition-all ${
+                                employe.actif 
+                                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                                  : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                              }`}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                {employe.actif ? (
+                                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                ) : (
+                                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                )}
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Info */}
+                <div className="p-4 bg-gray-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#60A5FA" className="flex-shrink-0 mt-0.5">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    <div className="text-xs text-gray-400">
+                      Chaque employé a un code unique pour se connecter. Vous pouvez désactiver un compte sans le supprimer.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {/* Onglet Paramètres */}
+            {adminTab === 'parametres' && (
+              <>
+                {/* Connexion NAS */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Connexion NAS</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl flex flex-col gap-4">
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Chemin du NAS</label>
+                      <input
+                        type="text"
+                        value={nasPath}
+                        onChange={(e) => setNasPath(e.target.value)}
+                        placeholder="/Volumes/NAS"
+                        className="w-full px-3 py-2 text-sm font-medium border-none rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button className="w-full px-3 py-2 text-xs font-bold bg-blue-600 text-white border-none rounded-lg cursor-pointer hover:bg-blue-700 transition-all">
+                      Tester la connexion
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Fichier Clients */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Fichier Clients</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl flex flex-col gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Chemin du fichier</label>
+                      <input
+                        type="text"
+                        value={clientsFilePath || `${nasPath}/clients/clients.xlsx`}
+                        onChange={(e) => setClientsFilePath(e.target.value)}
+                        className="w-full px-3 py-2 text-sm font-medium border-none rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="flex-1 px-3 py-2 text-xs font-bold bg-gray-700 text-gray-300 border-none rounded-lg cursor-pointer hover:bg-gray-600 transition-all">
+                        Parcourir...
+                      </button>
+                      <button className="flex-1 px-3 py-2 text-xs font-bold bg-green-600 text-white border-none rounded-lg cursor-pointer hover:bg-green-700 transition-all">
+                        Vérifier
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Fichier Commandes */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Fichier Commandes</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl flex flex-col gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Chemin du fichier</label>
+                      <input
+                        type="text"
+                        value={commandesFilePath || `${nasPath}/commandes/commandes_2025.xlsx`}
+                        onChange={(e) => setCommandesFilePath(e.target.value)}
+                        className="w-full px-3 py-2 text-sm font-medium border-none rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="flex-1 px-3 py-2 text-xs font-bold bg-gray-700 text-gray-300 border-none rounded-lg cursor-pointer hover:bg-gray-600 transition-all">
+                        Parcourir...
+                      </button>
+                      <button className="flex-1 px-3 py-2 text-xs font-bold bg-green-600 text-white border-none rounded-lg cursor-pointer hover:bg-green-700 transition-all">
+                        Vérifier
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Sécurité */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Sécurité</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                        <span className="text-sm text-gray-400">Employés actifs</span>
+                        <span className="text-sm font-bold text-white">{employes.filter(e => e.actif).length}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm text-gray-400">Mot de passe admin</span>
+                        <span className="text-sm font-bold text-white font-mono bg-gray-700 px-2 py-1 rounded">{ADMIN_PASSWORD}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Informations système */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Informations</h2>
+                  <div className="p-4 bg-gray-800 rounded-xl">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">Version</span>
+                        <span className="text-sm font-semibold text-white">1.0.0</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">Clients enregistrés</span>
+                        <span className="text-sm font-semibold text-white">{clients.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">Commandes totales</span>
+                        <span className="text-sm font-semibold text-white">{commandes.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            
+          </div>
+        </div>
+        
+        {/* Modal Ajout/Édition Employé */}
+        {showEmployeModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50">
+            <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-bold text-white">
+                  {editingEmploye ? 'Modifier employé' : 'Nouvel employé'}
+                </h3>
+              </div>
+              
+              <div className="flex flex-col gap-4 mb-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Prénom *</label>
+                  <input
+                    type="text"
+                    value={newEmploye.prenom}
+                    onChange={(e) => setNewEmploye({...newEmploye, prenom: e.target.value})}
+                    placeholder="Prénom"
+                    className="w-full px-4 py-3 text-sm font-medium border-none rounded-xl bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Nom *</label>
+                  <input
+                    type="text"
+                    value={newEmploye.nom}
+                    onChange={(e) => setNewEmploye({...newEmploye, nom: e.target.value.toUpperCase()})}
+                    placeholder="NOM"
+                    className="w-full px-4 py-3 text-sm font-medium border-none rounded-xl bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Code d'accès *</label>
+                  <input
+                    type="text"
+                    value={newEmploye.code}
+                    onChange={(e) => setNewEmploye({...newEmploye, code: e.target.value.replace(/\D/g, '').slice(0, 6)})}
+                    placeholder="1234"
+                    className="w-full px-4 py-3 text-sm font-medium border-none rounded-xl bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center tracking-widest font-mono"
+                    maxLength={6}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Code numérique de 4 à 6 chiffres</p>
+                </div>
+                
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Rôle</label>
+                  <select
+                    value={newEmploye.role}
+                    onChange={(e) => setNewEmploye({...newEmploye, role: e.target.value})}
+                    className="w-full px-4 py-3 text-sm font-medium border-none rounded-xl bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="Employé">Employé</option>
+                    <option value="Manager">Manager</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    if (!newEmploye.prenom || !newEmploye.nom || !newEmploye.code) {
+                      alert('Veuillez remplir tous les champs obligatoires');
+                      return;
+                    }
+                    
+                    // Vérifier que le code est unique
+                    const codeExists = employes.some(e => 
+                      e.code === newEmploye.code && (!editingEmploye || e.id !== editingEmploye.id)
+                    );
+                    if (codeExists) {
+                      alert('Ce code est déjà utilisé par un autre employé');
+                      return;
+                    }
+                    
+                    if (editingEmploye) {
+                      // Modifier
+                      const updated = employes.map(e => 
+                        e.id === editingEmploye.id 
+                          ? {...e, ...newEmploye}
+                          : e
+                      );
+                      setEmployes(updated);
+                    } else {
+                      // Ajouter
+                      const newId = employes.length > 0 ? Math.max(...employes.map(e => e.id)) + 1 : 1;
+                      setEmployes([...employes, { id: newId, ...newEmploye, actif: true }]);
+                    }
+                    
+                    setShowEmployeModal(false);
+                    setEditingEmploye(null);
+                    setNewEmploye({ prenom: '', nom: '', code: '', role: 'Employé' });
+                  }}
+                  className="w-full px-5 py-3 text-sm font-bold bg-blue-600 text-white border-none rounded-full cursor-pointer transition-transform active:scale-98 hover:bg-blue-700"
+                >
+                  {editingEmploye ? 'Enregistrer' : 'Créer'}
+                </button>
+                
+                {editingEmploye && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Supprimer cet employé ?')) {
+                        setEmployes(employes.filter(e => e.id !== editingEmploye.id));
+                        setShowEmployeModal(false);
+                        setEditingEmploye(null);
+                      }
+                    }}
+                    className="w-full px-5 py-3 text-sm font-bold bg-red-600 text-white border-none rounded-full cursor-pointer transition-transform active:scale-98 hover:bg-red-700"
+                  >
+                    Supprimer
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => {
+                    setShowEmployeModal(false);
+                    setEditingEmploye(null);
+                    setNewEmploye({ prenom: '', nom: '', code: '', role: 'Employé' });
+                  }}
+                  className="w-full px-5 py-3 text-sm font-bold bg-gray-700 text-gray-300 border-none rounded-full cursor-pointer transition-transform active:scale-98 hover:bg-gray-600"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Page Menu
+  if (currentScreen === 'menu') {
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-8" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        {/* Header avec nom employé */}
+        {currentUser && (
+          <div className="w-full max-w-md mx-auto mb-4">
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+              </svg>
+              <span>{currentUser.prenom} {currentUser.nom}</span>
+            </div>
+          </div>
+        )}
+        
+        <div className="flex flex-col gap-8 w-full max-w-md mx-auto flex-1 justify-center">
+          <div className="flex items-center gap-2 w-full bg-gray-100 rounded-xl p-1">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => performSearch(e.target.value)}
+              placeholder="rechercher client, commande, email, téléphone..."
+              className="flex-1 px-4 py-3 text-sm font-medium border-none bg-transparent text-gray-900 focus:outline-none"
+              autoFocus
+            />
+            <button
+              onClick={() => performSearch(searchQuery)}
+              className="p-3 bg-gray-900 border-none rounded-lg cursor-pointer flex items-center justify-center text-white transition-transform active:scale-95"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+              </svg>
+            </button>
+          </div>
+          
+          {searchResults.length > 0 && (
+            <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
+              {searchResults.map((result, index) => (
+                <div
+                  key={index}
+                  onClick={() => openResult(result)}
+                  className="flex justify-between items-center p-4 bg-gray-100 rounded-lg cursor-pointer transition-all hover:bg-gray-200 active:scale-98"
+                >
+                  <div className="flex flex-col gap-1">
+                    <div className="text-sm font-semibold text-gray-900">{result.nom}</div>
+                    <div className="text-xs font-normal text-gray-500">{result.detail}</div>
+                  </div>
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{result.type}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {searchQuery && searchResults.length === 0 && (
+            <div className="text-center py-5 text-gray-400 text-sm">
+              Aucun résultat trouvé
+            </div>
+          )}
+          
+          <div className="flex flex-col gap-3 items-center">
+            <button
+              onClick={() => setCurrentScreen('allCommandes')}
+              className="w-full px-5 py-4 text-base font-bold bg-white text-gray-900 border-2 border-gray-900 rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-100 flex items-center justify-center gap-3"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+              </svg>
+              voir les commandes
+            </button>
+            
+            <button
+              onClick={() => setCurrentScreen('addClient')}
+              className="px-6 py-3 text-sm font-semibold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-800 flex items-center justify-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+              ajouter un client
+            </button>
+          </div>
+          
+          <div>
+            <button
+              onClick={() => setCurrentScreen('allClients')}
+              className="w-full px-5 py-3 text-sm font-semibold bg-transparent text-gray-400 border-none rounded-full cursor-pointer lowercase transition-all hover:text-gray-600 flex items-center justify-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+              </svg>
+              voir tous les clients
+            </button>
+          </div>
+        </div>
+        
+        <div className="pt-8 w-full max-w-md mx-auto flex flex-col gap-3">
+          <button
+            onClick={() => setCurrentScreen('scan')}
+            className="w-full px-5 py-4 text-base font-bold bg-green-600 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-green-700 flex items-center justify-center gap-3"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13 0h-2v2h2v-2zm0 4h-2v2h2v-2zm-4-4h-2v2h2v-2z"/>
+            </svg>
+            scanner une commande
+          </button>
+          
+          <button
+            onClick={handleLogout}
+            className="w-full px-5 py-3 text-sm font-semibold bg-transparent text-gray-900 border-none rounded-full cursor-pointer lowercase transition-all hover:text-gray-600 flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            </svg>
+            déconnexion
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Formulaire Ajout Client
+  if (currentScreen === 'addClient') {
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => {
+              setNewClient({ prenom: '', nom: '', email: '', telephone: '' });
+              setCurrentScreen('menu');
+            }}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Nouveau Client</h1>
+        </div>
+        
+        <div className="flex flex-col gap-6 w-full max-w-md mx-auto">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Prénom *</label>
+              <input
+                type="text"
+                value={newClient.prenom}
+                onChange={(e) => setNewClient({...newClient, prenom: e.target.value})}
+                placeholder="Prénom"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Nom *</label>
+              <input
+                type="text"
+                value={newClient.nom}
+                onChange={(e) => setNewClient({...newClient, nom: e.target.value})}
+                placeholder="Nom"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Téléphone</label>
+              <input
+                type="tel"
+                value={newClient.telephone}
+                onChange={(e) => setNewClient({...newClient, telephone: e.target.value})}
+                placeholder="06 XX XX XX XX"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Email</label>
+              <input
+                type="email"
+                value={newClient.email}
+                onChange={(e) => setNewClient({...newClient, email: e.target.value})}
+                placeholder="email@exemple.com"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+          </div>
+          
+          <button
+            onClick={handleAddClient}
+            className="w-full px-5 py-4 text-base font-bold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-800 mt-4"
+          >
+            créer le client
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Modifier Client
+  if (currentScreen === 'editClient' && selectedClient) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setCurrentScreen('client')}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Modifier Client</h1>
+        </div>
+        
+        <div className="flex flex-col gap-6 w-full max-w-md mx-auto">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Prénom *</label>
+              <input
+                type="text"
+                value={selectedClient.prenom}
+                onChange={(e) => {
+                  const updated = {...selectedClient, prenom: e.target.value};
+                  setSelectedClient(updated);
+                }}
+                placeholder="Prénom"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Nom *</label>
+              <input
+                type="text"
+                value={selectedClient.nom}
+                onChange={(e) => {
+                  const updated = {...selectedClient, nom: e.target.value.toUpperCase()};
+                  setSelectedClient(updated);
+                }}
+                placeholder="Nom"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all uppercase"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Téléphone</label>
+              <input
+                type="tel"
+                value={selectedClient.telephone}
+                onChange={(e) => {
+                  const updated = {...selectedClient, telephone: e.target.value};
+                  setSelectedClient(updated);
+                }}
+                placeholder="06 XX XX XX XX"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase">Email</label>
+              <input
+                type="email"
+                value={selectedClient.email}
+                onChange={(e) => {
+                  const updated = {...selectedClient, email: e.target.value};
+                  setSelectedClient(updated);
+                }}
+                placeholder="email@exemple.com"
+                className="w-full px-4 py-4 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 focus:outline-none focus:border-gray-900 transition-all"
+              />
+            </div>
+          </div>
+          
+          <button
+            onClick={() => {
+              const updatedClients = clients.map(c => 
+                c.id === selectedClient.id ? selectedClient : c
+              );
+              setClients(updatedClients);
+              setCurrentScreen('client');
+            }}
+            className="w-full px-5 py-4 text-base font-bold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-800 mt-4"
+          >
+            enregistrer
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Fonction pour définir le statut selon le poste
+  const getNewStatusForPoste = (commande, poste) => {
+    if (poste === 'developpement') {
+      return 'Développement';
+    } else if (poste === 'scan') {
+      return 'Scan';
+    } else if (poste === 'archives') {
+      return 'Archives';
+    } else if (poste === 'comptoir') {
+      // Logique pour le comptoir : Reçue -> Prête -> Récupérée
+      if (commande.statut === 'Scan' || commande.statut === 'Archives') {
+        return 'Prête';
+      } else if (commande.statut === 'Prête') {
+        return 'Récupérée';
+      } else {
+        return 'Reçue';
+      }
+    }
+    return commande.statut;
+  };
+  
+  // Fonction pour mettre à jour le statut d'une commande selon le poste
+  const updateCommandeStatusByPoste = (commandeId, poste) => {
+    const commande = commandes.find(c => c.id === commandeId || c.id === `#${commandeId}`);
+    if (!commande) {
+      return { success: false, error: 'Commande introuvable' };
+    }
+    
+    const newStatut = getNewStatusForPoste(commande, poste);
+    
+    if (newStatut === commande.statut) {
+      return { success: false, error: 'Statut déjà à jour', commande };
+    }
+    
+    if (commande.statut === 'Récupérée') {
+      return { success: false, error: 'Commande déjà récupérée', commande };
+    }
+    
+    // Marquer si la commande passe par Archives
+    const passedArchives = commande.passedArchives || newStatut === 'Archives';
+    
+    const updatedCommandes = commandes.map(c => 
+      c.id === commande.id ? { ...c, statut: newStatut, passedArchives } : c
+    );
+    setCommandes(updatedCommandes);
+    
+    return { 
+      success: true, 
+      commande: { ...commande, statut: newStatut, passedArchives },
+      oldStatut: commande.statut,
+      newStatut 
+    };
+  };
+  
+  // Gestion du scan
+  const handleScan = (input) => {
+    if (!selectedPoste) {
+      return;
+    }
+    
+    let commandeId = input.trim();
+    
+    // Nettoyer l'entrée (enlever # si présent)
+    if (commandeId.startsWith('#')) {
+      commandeId = commandeId.substring(1);
+    }
+    
+    const result = updateCommandeStatusByPoste(commandeId, selectedPoste);
+    const client = result.commande ? clients.find(c => c.id === result.commande.clientId) : null;
+    
+    const scanEntry = {
+      id: Date.now(),
+      commandeId: `#${commandeId}`,
+      timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      success: result.success,
+      error: result.error,
+      oldStatut: result.oldStatut,
+      newStatut: result.newStatut,
+      clientName: client ? `${client.prenom} ${client.nom}` : 'Inconnu'
+    };
+    
+    setScanHistory([scanEntry, ...scanHistory.slice(0, 9)]);
+    setScanInput('');
+    
+    // Jouer un son de confirmation ou d'erreur
+    if (result.success) {
+      // Son de succès (bip court)
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } else {
+      // Son d'erreur (bip grave)
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+      oscillator.connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.3);
+    }
+  };
+  
+  // Page Scan
+  if (currentScreen === 'scan') {
+    // Si aucun poste sélectionné, afficher la sélection
+    if (!selectedPoste) {
+      return (
+        <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <h1 className="text-2xl font-bold text-white mb-2">Sélectionner le poste</h1>
+              <p className="text-gray-400 text-sm">Choisissez votre poste de travail</p>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setSelectedPoste('comptoir')}
+                className="w-full p-5 bg-gray-800 rounded-xl cursor-pointer hover:bg-gray-700 transition-all border-none flex items-center gap-4"
+              >
+                <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
+                  </svg>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-lg font-bold text-white">Comptoir</span>
+                  <span className="text-xs text-gray-400">Réception & Remise client</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setSelectedPoste('developpement')}
+                className="w-full p-5 bg-gray-800 rounded-xl cursor-pointer hover:bg-gray-700 transition-all border-none flex items-center gap-4"
+              >
+                <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
+                  </svg>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-lg font-bold text-white">Développement</span>
+                  <span className="text-xs text-gray-400">Traitement des pellicules</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setSelectedPoste('scan')}
+                className="w-full p-5 bg-gray-800 rounded-xl cursor-pointer hover:bg-gray-700 transition-all border-none flex items-center gap-4"
+              >
+                <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13 0h-2v2h2v-2zm0 4h-2v2h2v-2zm-4-4h-2v2h2v-2z"/>
+                  </svg>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-lg font-bold text-white">Scan</span>
+                  <span className="text-xs text-gray-400">Numérisation des négatifs</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setSelectedPoste('archives')}
+                className="w-full p-5 bg-gray-800 rounded-xl cursor-pointer hover:bg-gray-700 transition-all border-none flex items-center gap-4"
+              >
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                  </svg>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-lg font-bold text-white">Archives</span>
+                  <span className="text-xs text-gray-400">Pochettes négatifs aux archives</span>
+                </div>
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setCurrentScreen('menu')}
+              className="w-full mt-6 px-5 py-3 text-sm font-semibold bg-transparent text-gray-500 border-none rounded-full cursor-pointer lowercase transition-all hover:text-gray-300"
+            >
+              annuler
+            </button>
+          </div>
+        </div>
+      );
+    }
+    
+    // Page de scan avec poste sélectionné
+    const posteInfo = {
+      'comptoir': { nom: 'Comptoir', color: 'red', icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z' },
+      'developpement': { nom: 'Développement', color: 'yellow', icon: 'M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z' },
+      'scan': { nom: 'Scan', color: 'green', icon: 'M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13 0h-2v2h2v-2zm0 4h-2v2h2v-2zm-4-4h-2v2h2v-2z' },
+      'archives': { nom: 'Archives', color: 'purple', icon: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z' }
+    };
+    
+    const currentPoste = posteInfo[selectedPoste];
+    const bgColor = selectedPoste === 'comptoir' ? '#DC2626' : selectedPoste === 'developpement' ? '#EAB308' : selectedPoste === 'scan' ? '#16A34A' : '#9333EA';
+    
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        {/* Header */}
+        <div className="flex items-center gap-4 p-6">
+          <button
+            onClick={() => {
+              setSelectedPoste(null);
+              setCurrentScreen('menu');
+            }}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#FFFFFF">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-white uppercase tracking-wide">Scan Commande</h1>
+          <button
+            onClick={() => setSelectedPoste(null)}
+            className="ml-auto px-3 py-1.5 text-xs font-bold rounded-lg border-none cursor-pointer"
+            style={{ backgroundColor: bgColor, color: 'white' }}
+          >
+            {currentPoste.nom}
+          </button>
+        </div>
+        
+        {/* Zone de scan principale */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            {/* Icône et statut */}
+            <div className="text-center mb-8">
+              <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: bgColor }}>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="white">
+                  <path d={currentPoste.icon}/>
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">En attente de scan...</h2>
+              <p className="text-gray-400 text-sm">Poste : {currentPoste.nom}</p>
+            </div>
+            
+            {/* Input caché pour recevoir le scan */}
+            <input
+              type="text"
+              value={scanInput}
+              onChange={(e) => setScanInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && scanInput.trim()) {
+                  handleScan(scanInput);
+                }
+              }}
+              className="w-full px-4 py-3 text-lg font-mono text-center border-2 rounded-xl bg-gray-800 text-white focus:outline-none mb-6"
+              style={{ borderColor: bgColor }}
+              placeholder="Numéro de commande..."
+              autoFocus
+            />
+            
+            {/* Dernier scan */}
+            {scanHistory.length > 0 && (
+              <div className={`p-4 rounded-xl mb-6 ${scanHistory[0].success ? 'bg-green-900/50 border-2 border-green-500' : 'bg-red-900/50 border-2 border-red-500'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg font-bold text-white">{scanHistory[0].commandeId}</span>
+                  <span className="text-xs text-gray-400">{scanHistory[0].timestamp}</span>
+                </div>
+                {scanHistory[0].success ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-300">{scanHistory[0].oldStatut}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#10B981">
+                      <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                    </svg>
+                    <span className="text-sm font-bold text-green-400">{scanHistory[0].newStatut}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#10B981" className="ml-auto">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="text-sm text-red-400">{scanHistory[0].error}</div>
+                )}
+                {scanHistory[0].clientName && scanHistory[0].success && (
+                  <div className="text-xs text-gray-400 mt-1">{scanHistory[0].clientName}</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Historique des scans */}
+        <div className="p-6 bg-gray-800">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Historique</h3>
+          <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+            {scanHistory.length === 0 ? (
+              <div className="text-center py-4 text-gray-500 text-sm">
+                Aucun scan effectué
+              </div>
+            ) : (
+              scanHistory.slice(1).map((scan) => (
+                <div key={scan.id} className="flex items-center justify-between py-2 border-b border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <span className={`w-2 h-2 rounded-full ${scan.success ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span className="text-sm font-semibold text-white">{scan.commandeId}</span>
+                    {scan.success && (
+                      <span className="text-xs text-gray-400">-> {scan.newStatut}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500">{scan.timestamp}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Liste de toutes les commandes avec filtres
+  if (currentScreen === 'allCommandes') {
+    const filteredCommandes = commandes.filter(commande => {
+      if (commandeFilter !== 'all' && commande.statut !== commandeFilter) return false;
+      if (commandeTypeFilter !== 'all' && commande.type !== commandeTypeFilter) return false;
+      if (commandeFormatFilter !== 'all' && commande.format !== commandeFormatFilter) return false;
+      return true;
+    });
+    
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-4">
+          <button
+            onClick={() => {
+              setCommandeFilter('all');
+              setCommandeTypeFilter('all');
+              setCommandeFormatFilter('all');
+              setCurrentScreen('menu');
+            }}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Commandes</h1>
+          <span className="ml-auto text-sm font-bold text-gray-400">{filteredCommandes.length}</span>
+        </div>
+        
+        <div className="flex flex-col gap-4 w-full max-w-md mx-auto flex-1">
+          {/* Filtres par statut */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setCommandeFilter('all')}
+              className={`px-3 py-2 text-xs font-bold border-2 rounded-lg cursor-pointer transition-all ${
+                commandeFilter === 'all' 
+                  ? 'bg-gray-900 text-white border-gray-900' 
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              Toutes ({commandes.length})
+            </button>
+            {STATUTS_COMMANDE.map(statut => {
+              const count = commandes.filter(c => c.statut === statut).length;
+              const colors = {
+                'Reçue': 'blue',
+                'Développement': 'orange',
+                'Scan': 'purple',
+                'Archives': 'violet',
+                'Prête': 'green',
+                'Récupérée': 'gray'
+              };
+              const color = colors[statut] || 'gray';
+              return (
+                <button
+                  key={statut}
+                  onClick={() => setCommandeFilter(statut)}
+                  className={`px-3 py-2 text-xs font-bold border-2 rounded-lg cursor-pointer transition-all ${
+                    commandeFilter === statut 
+                      ? `bg-${color}-500 text-white border-${color}-500` 
+                      : `bg-white text-gray-600 border-gray-200 hover:border-${color}-400`
+                  }`}
+                  style={commandeFilter === statut ? {
+                    backgroundColor: color === 'blue' ? '#3B82F6' : color === 'orange' ? '#F97316' : color === 'purple' ? '#8B5CF6' : color === 'violet' ? '#9333EA' : color === 'green' ? '#22C55E' : '#6B7280',
+                    borderColor: color === 'blue' ? '#3B82F6' : color === 'orange' ? '#F97316' : color === 'purple' ? '#8B5CF6' : color === 'violet' ? '#9333EA' : color === 'green' ? '#22C55E' : '#6B7280',
+                    color: 'white'
+                  } : {}}
+                >
+                  {statut} ({count})
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* Filtres par type et format */}
+          <div className="flex gap-2">
+            <select
+              value={commandeTypeFilter}
+              onChange={(e) => setCommandeTypeFilter(e.target.value)}
+              className="flex-1 px-3 py-2 text-xs font-semibold border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:outline-none focus:border-gray-400 cursor-pointer"
+            >
+              <option value="all">Tous les types</option>
+              {typesTravauxList.map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            
+            <select
+              value={commandeFormatFilter}
+              onChange={(e) => setCommandeFormatFilter(e.target.value)}
+              className="flex-1 px-3 py-2 text-xs font-semibold border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:outline-none focus:border-gray-400 cursor-pointer"
+            >
+              <option value="all">Tous formats</option>
+              {formatsList.map(format => (
+                <option key={format} value={format}>{format}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Liste des commandes */}
+          <div className="flex flex-col gap-3 overflow-y-auto flex-1">
+            {filteredCommandes.length === 0 ? (
+              <div className="text-center py-10 text-gray-400 text-sm">
+                Aucune commande trouvée
+              </div>
+            ) : (
+              [...filteredCommandes].sort((a, b) => {
+                // Trier par date décroissante
+                const dateA = a.dateCreation.split('/').reverse().join('');
+                const dateB = b.dateCreation.split('/').reverse().join('');
+                return dateB.localeCompare(dateA);
+              }).map((commande) => {
+                const client = clients.find(c => c.id === commande.clientId);
+                return (
+                  <div
+                    key={commande.id}
+                    onClick={() => {
+                      setSelectedCommande(commande);
+                      setSelectedClient(client);
+                      setCurrentScreen('commande');
+                    }}
+                    className="flex items-center gap-4 p-4 bg-gray-100 rounded-xl cursor-pointer transition-all hover:bg-gray-200"
+                  >
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-bold text-gray-900">{commande.id}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold`}
+                          style={{
+                            backgroundColor: commande.statut === 'Reçue' ? '#FFBA08' : commande.statut === 'Développement' ? '#F25C05' : commande.statut === 'Scan' ? '#F20587' : commande.statut === 'Archives' ? '#7209B7' : commande.statut === 'Prête' ? '#22C55E' : '#3A86FF',
+                            color: '#FFFFFF'
+                          }}
+                        >
+                          {commande.statut}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500 truncate">
+                        {client ? `${client.prenom} ${client.nom}` : 'Client inconnu'}
+                      </span>
+                      <span className="text-xs text-gray-400 mt-1">
+                        {commande.quantite}x {commande.type} • {commande.format} • {commande.dateCreation}
+                      </span>
+                    </div>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#CCCCCC">
+                      <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                    </svg>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Liste de tous les clients
+  if (currentScreen === 'allClients') {
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setCurrentScreen('menu')}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Clients</h1>
+          <span className="ml-auto text-sm font-bold text-gray-400">{clients.length}</span>
+        </div>
+        
+        <div className="flex flex-col gap-3 w-full max-w-md mx-auto overflow-y-auto">
+          {clients.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">
+              Aucun client enregistré
+            </div>
+          ) : (
+            [...clients].sort((a, b) => a.nom.localeCompare(b.nom)).map((client) => (
+              <div
+                key={client.id}
+                onClick={() => {
+                  setSelectedClient(client);
+                  setCurrentScreen('client');
+                }}
+                className="flex items-center gap-4 p-4 bg-gray-100 rounded-xl cursor-pointer transition-all hover:bg-gray-200"
+              >
+                <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-lg">{client.prenom[0]}{client.nom[0]}</span>
+                </div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-base font-bold text-gray-900">{client.prenom} {client.nom}</span>
+                  <span className="text-sm text-gray-500 truncate">{client.telephone || client.email || 'Aucune info'}</span>
+                </div>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#CCCCCC">
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                </svg>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Formulaire Nouvelle Commande
+  if (currentScreen === 'addCommande') {
+    const selectedClientData = clients.find(c => c.id === parseInt(newCommande.clientId));
+    const canAddLine = newCommande.type && newCommande.format && newCommande.process;
+    
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-4">
+          <button
+            onClick={() => {
+              setNewCommande({ clientId: '', type: '', format: '', quantite: 1, details: '', process: '', exportFormat: '' });
+              setCommandeLines([]);
+              if (selectedClient) {
+                setCurrentScreen('client');
+              } else {
+                setCurrentScreen('menu');
+              }
+            }}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Nouvelle Commande</h1>
+        </div>
+        
+        <div className="flex flex-col gap-4 w-full max-w-md mx-auto flex-1 overflow-y-auto">
+          {selectedClientData && (
+            <div className="flex items-center gap-3 p-3 bg-gray-100 rounded-xl">
+              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">{selectedClientData.prenom[0]}{selectedClientData.nom[0]}</span>
+              </div>
+              <span className="text-sm font-bold text-gray-900">{selectedClientData.prenom} {selectedClientData.nom}</span>
+            </div>
+          )}
+          
+          {commandeLines.length > 0 && (
+            <div className="mb-2">
+              <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Articles ({commandeLines.length})</label>
+              <div className="flex flex-col gap-2">
+                {commandeLines.map((line, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-green-50 border-2 border-green-200 rounded-xl">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-gray-900">
+                        {line.quantite}x {line.type}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {line.format} • {line.process === 'couleur' ? 'Couleur (C-41)' : 'Noir & Blanc'}
+                        {line.exportFormat && ` • ${line.exportFormat.toUpperCase()}`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeLineFromCommande(index)}
+                      className="p-2 bg-transparent border-none cursor-pointer text-red-500"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {commandeLines.length > 0 && (
+            <div className="border-t border-gray-200 pt-4">
+              <label className="text-xs font-semibold text-gray-400 uppercase block mb-3">Ajouter un article</label>
+            </div>
+          )}
+          
+          <div>
+            <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Procédé</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setNewCommande({...newCommande, process: 'couleur'})}
+                className={`px-4 py-3 text-sm font-bold border-2 rounded-xl cursor-pointer transition-all ${
+                  newCommande.process === 'couleur' 
+                    ? 'bg-gray-900 text-white border-gray-900' 
+                    : 'bg-white text-gray-900 border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                Couleur (C-41)
+              </button>
+              <button
+                onClick={() => setNewCommande({...newCommande, process: 'nb'})}
+                className={`px-4 py-3 text-sm font-bold border-2 rounded-xl cursor-pointer transition-all ${
+                  newCommande.process === 'nb' 
+                    ? 'bg-gray-900 text-white border-gray-900' 
+                    : 'bg-white text-gray-900 border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                Noir & Blanc
+              </button>
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Type de travail</label>
+            <div className="grid grid-cols-1 gap-2">
+              {typesTravauxList.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setNewCommande({...newCommande, type: type})}
+                  className={`w-full px-4 py-3 text-sm font-bold border-2 rounded-xl cursor-pointer transition-all ${
+                    newCommande.type === type 
+                      ? 'bg-gray-900 text-white border-gray-900' 
+                      : 'bg-white text-gray-900 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Format</label>
+            <div className="grid grid-cols-2 gap-2">
+              {formatsList.map((format) => (
+                <button
+                  key={format}
+                  onClick={() => setNewCommande({...newCommande, format: format})}
+                  className={`px-4 py-3 text-sm font-bold border-2 rounded-xl cursor-pointer transition-all ${
+                    newCommande.format === format 
+                      ? 'bg-gray-900 text-white border-gray-900' 
+                      : 'bg-white text-gray-900 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {format}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {(newCommande.type === 'Scan' || newCommande.type === 'Développement + Scan') && (
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Export</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setNewCommande({...newCommande, exportFormat: 'jpeg'})}
+                  className={`px-4 py-3 text-sm font-bold border-2 rounded-xl cursor-pointer transition-all ${
+                    newCommande.exportFormat === 'jpeg' 
+                      ? 'bg-gray-900 text-white border-gray-900' 
+                      : 'bg-white text-gray-900 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  JPEG
+                </button>
+                <button
+                  onClick={() => setNewCommande({...newCommande, exportFormat: 'tiff'})}
+                  className={`px-4 py-3 text-sm font-bold border-2 rounded-xl cursor-pointer transition-all ${
+                    newCommande.exportFormat === 'tiff' 
+                      ? 'bg-gray-900 text-white border-gray-900' 
+                      : 'bg-white text-gray-900 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  TIFF
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <div>
+            <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Quantité</label>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setNewCommande({...newCommande, quantite: Math.max(1, (parseInt(newCommande.quantite) || 1) - 1)})}
+                className="w-12 h-12 text-xl font-bold bg-gray-100 text-gray-900 border-none rounded-xl cursor-pointer transition-all hover:bg-gray-200 flex items-center justify-center"
+              >
+                -
+              </button>
+              <span className="text-3xl font-extrabold text-gray-900 w-12 text-center">{newCommande.quantite || 1}</span>
+              <button
+                onClick={() => setNewCommande({...newCommande, quantite: (parseInt(newCommande.quantite) || 1) + 1})}
+                className="w-12 h-12 text-xl font-bold bg-gray-100 text-gray-900 border-none rounded-xl cursor-pointer transition-all hover:bg-gray-200 flex items-center justify-center"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          
+          <button
+            onClick={addLineToCommande}
+            disabled={!canAddLine || ((newCommande.type === 'Scan' || newCommande.type === 'Développement + Scan') && !newCommande.exportFormat)}
+            className={`w-full px-5 py-3 text-sm font-bold border-2 border-dashed rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2 ${
+              canAddLine && !((newCommande.type === 'Scan' || newCommande.type === 'Développement + Scan') && !newCommande.exportFormat)
+                ? 'border-gray-900 text-gray-900 hover:bg-gray-100'
+                : 'border-gray-200 text-gray-300 cursor-not-allowed'
+            }`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            ajouter à la commande
+          </button>
+        </div>
+        
+        <div className="pt-4 w-full max-w-md mx-auto">
+          <button
+            onClick={handleValidateCommande}
+            disabled={commandeLines.length === 0}
+            className={`w-full px-5 py-4 text-base font-bold border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 flex items-center justify-center gap-2 ${
+              commandeLines.length > 0
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            valider la commande ({commandeLines.length} article{commandeLines.length > 1 ? 's' : ''})
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Fiche Client
+  if (currentScreen === 'client' && selectedClient) {
+    const clientCommandes = getClientCommandes(selectedClient.id);
+    
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setCurrentScreen('menu')}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Fiche Client</h1>
+          <button
+            onClick={() => setCurrentScreen('editClient')}
+            className="ml-auto p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div className="flex flex-col gap-6 w-full max-w-md mx-auto">
+          <div className="text-center py-4">
+            <h2 className="text-3xl font-extrabold text-gray-900">{selectedClient.prenom} {selectedClient.nom}</h2>
+          </div>
+          
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-4 p-4 bg-gray-100 rounded-xl">
+              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                  <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                </svg>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-gray-400 uppercase">Téléphone</span>
+                <span className="text-base font-semibold text-gray-900">{selectedClient.telephone || '-'}</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4 p-4 bg-gray-100 rounded-xl">
+              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                  <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-gray-400 uppercase">Email</span>
+                <span className="text-base font-semibold text-gray-900">{selectedClient.email || '-'}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-2">
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wide mb-3">Notes</h3>
+            <textarea
+              value={selectedClient.notes || ''}
+              onChange={(e) => {
+                const updatedClients = clients.map(c => 
+                  c.id === selectedClient.id ? {...c, notes: e.target.value} : c
+                );
+                setClients(updatedClients);
+                setSelectedClient({...selectedClient, notes: e.target.value});
+              }}
+              placeholder="Ajouter une note..."
+              rows={3}
+              className="w-full p-4 bg-gray-100 rounded-xl text-sm text-gray-900 border-none focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none"
+            />
+          </div>
+          
+          <div className="mt-2">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wide">Commandes ({clientCommandes.length})</h3>
+              <button
+                onClick={() => {
+                  setNewCommande({...newCommande, clientId: selectedClient.id.toString()});
+                  setCurrentScreen('addCommande');
+                }}
+                className="px-4 py-2 text-xs font-bold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-95 flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                nouvelle
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              {clientCommandes.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm">
+                  Aucune commande
+                </div>
+              ) : (
+                clientCommandes.map((commande, index) => (
+                  <div
+                    key={index}
+                    onClick={() => {
+                      setSelectedCommande(commande);
+                      setCurrentScreen('commande');
+                    }}
+                    className="flex justify-between items-center p-4 bg-gray-100 rounded-xl cursor-pointer transition-all hover:bg-gray-200"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="text-base font-bold text-gray-900">{commande.id}</span>
+                      <span className="text-sm text-gray-500">{commande.quantite}x {commande.type} - {commande.format}</span>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold`}
+                      style={{
+                        backgroundColor: commande.statut === 'Reçue' ? '#FFBA08' : commande.statut === 'Développement' ? '#F25C05' : commande.statut === 'Scan' ? '#F20587' : commande.statut === 'Archives' ? '#7209B7' : commande.statut === 'Prête' ? '#22C55E' : '#3A86FF',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      {commande.statut}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="w-full px-5 py-3 text-sm font-semibold bg-transparent text-red-500 border-none rounded-full cursor-pointer lowercase transition-all hover:bg-red-50 flex items-center justify-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+              supprimer ce client
+            </button>
+          </div>
+        </div>
+        
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+              <div className="text-center mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="#EF4444">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Supprimer ce client ?</h3>
+                <p className="text-sm text-gray-500 mt-1">{selectedClient.prenom} {selectedClient.nom}</p>
+              </div>
+              
+              <div className="mb-4">
+                <label className="text-xs font-semibold text-gray-400 uppercase block mb-2">Mot de passe admin</label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => {
+                    setDeletePassword(e.target.value);
+                    setShowDeleteError(false);
+                  }}
+                  onKeyPress={(e) => e.key === 'Enter' && handleDeleteClient()}
+                  placeholder="••••••"
+                  className="w-full px-4 py-3 text-base font-medium border-2 border-gray-200 rounded-xl bg-white text-gray-900 text-center tracking-widest focus:outline-none focus:border-red-500 transition-all"
+                  autoFocus
+                />
+                <div className={`text-xs font-medium text-red-500 text-center mt-2 transition-opacity ${showDeleteError ? 'opacity-100' : 'opacity-0'}`}>
+                  mot de passe incorrect
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleDeleteClient}
+                  className="w-full px-5 py-3 text-sm font-bold bg-red-500 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98"
+                >
+                  supprimer
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeletePassword('');
+                    setShowDeleteError(false);
+                  }}
+                  className="w-full px-5 py-3 text-sm font-bold bg-gray-100 text-gray-900 border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98"
+                >
+                  annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Page Détail Commande
+  if (currentScreen === 'commande' && selectedCommande) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => {
+              if (selectedClient) {
+                setCurrentScreen('client');
+              } else {
+                setCurrentScreen('menu');
+              }
+            }}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Commande</h1>
+        </div>
+        
+        <div className="flex flex-col gap-6 w-full max-w-md mx-auto">
+          <div className="text-center py-4">
+            <h2 className="text-4xl font-extrabold text-gray-900">{selectedCommande.id}</h2>
+          </div>
+          
+          {/* Barre de progression des étapes */}
+          <div className="px-2">
+            {(() => {
+              // Définir les étapes selon si la commande est passée par Archives ou non
+              const hasArchives = selectedCommande.statut === 'Archives' || 
+                (selectedCommande.statut === 'Prête' && selectedCommande.passedArchives) ||
+                (selectedCommande.statut === 'Récupérée' && selectedCommande.passedArchives);
+              
+              const etapes = hasArchives 
+                ? ['Reçue', 'Développement', 'Scan', 'Archives', 'Prête', 'Récupérée']
+                : ['Reçue', 'Développement', 'Scan', 'Prête', 'Récupérée'];
+              
+              const currentIndex = etapes.indexOf(selectedCommande.statut);
+              
+              // Couleurs de la palette
+              const getEtapeColor = (index, total) => {
+                if (total === 5) {
+                  // Sans Archives: Jaune, Orange, Rose, Vert, Bleu
+                  const colors = ['#FFBA08', '#F25C05', '#F20587', '#22C55E', '#3A86FF'];
+                  return colors[index] || '#6B7280';
+                } else {
+                  // Avec Archives: Jaune, Orange, Rose, Violet, Vert, Bleu
+                  const colors = ['#FFBA08', '#F25C05', '#F20587', '#7209B7', '#22C55E', '#3A86FF'];
+                  return colors[index] || '#6B7280';
+                }
+              };
+              
+              return (
+                <div className="flex flex-col gap-2">
+                  {/* Étapes avec barres individuelles */}
+                  <div className="flex items-center justify-between gap-1">
+                    {etapes.map((etape, index) => (
+                      <div key={etape} className="flex flex-col items-center flex-1">
+                        <div 
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${index <= currentIndex ? '' : 'border-2'}`}
+                          style={{ 
+                            backgroundColor: index <= currentIndex ? getEtapeColor(index, etapes.length) : 'transparent',
+                            borderColor: index <= currentIndex ? 'transparent' : '#E5E7EB'
+                          }}
+                        >
+                          {index <= currentIndex ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                          ) : (
+                            <span className="text-xs font-bold text-gray-300">{index + 1}</span>
+                          )}
+                        </div>
+                        <span 
+                          className={`mt-1.5 text-center leading-tight font-semibold`} 
+                          style={{ 
+                            fontSize: '10px',
+                            color: index === currentIndex ? getEtapeColor(index, etapes.length) : index < currentIndex ? '#374151' : '#9CA3AF'
+                          }}
+                        >
+                          {etape === 'Développement' ? 'Dév.' : etape === 'Récupérée' ? 'Récup.' : etape}
+                        </span>
+                        {/* Barre sous chaque étape */}
+                        <div 
+                          className="h-1.5 rounded-full w-full mt-2 transition-all"
+                          style={{ 
+                            backgroundColor: index <= currentIndex ? getEtapeColor(index, etapes.length) : '#E5E7EB'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          
+          {selectedClient && (
+            <div
+              onClick={() => setCurrentScreen('client')}
+              className="flex items-center gap-4 p-4 bg-gray-100 rounded-xl cursor-pointer hover:bg-gray-200"
+            >
+              <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-lg">{selectedClient.prenom[0]}{selectedClient.nom[0]}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-base font-bold text-gray-900">{selectedClient.prenom} {selectedClient.nom}</span>
+                <span className="text-sm text-gray-500">{selectedClient.telephone}</span>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex flex-col gap-3">
+            <div className="p-4 bg-gray-100 rounded-xl">
+              <span className="text-xs font-semibold text-gray-400 uppercase block mb-1">Type</span>
+              <span className="text-base font-semibold text-gray-900">{selectedCommande.type}</span>
+            </div>
+            
+            <div className="flex gap-3">
+              <div className="flex-1 p-4 bg-gray-100 rounded-xl">
+                <span className="text-xs font-semibold text-gray-400 uppercase block mb-1">Format</span>
+                <span className="text-base font-semibold text-gray-900">{selectedCommande.format}</span>
+              </div>
+              <div className="flex-1 p-4 bg-gray-100 rounded-xl">
+                <span className="text-xs font-semibold text-gray-400 uppercase block mb-1">Quantité</span>
+                <span className="text-base font-semibold text-gray-900">{selectedCommande.quantite}</span>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gray-100 rounded-xl">
+              <span className="text-xs font-semibold text-gray-400 uppercase block mb-1">Date de création</span>
+              <span className="text-base font-semibold text-gray-900">{selectedCommande.dateCreation}</span>
+            </div>
+            
+            <div className="p-4 bg-gray-100 rounded-xl">
+              <span className="text-xs font-semibold text-gray-400 uppercase block mb-1">Détails</span>
+              <span className="text-base font-semibold text-gray-900">{selectedCommande.details}</span>
+            </div>
+          </div>
+          
+          <button
+            onClick={() => setCurrentScreen('etiquette')}
+            className="w-full px-5 py-4 text-base font-bold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-800 flex items-center justify-center gap-3 mt-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+            </svg>
+            imprimer étiquette
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Page Étiquette (format 10x15cm)
+  if (currentScreen === 'etiquette' && selectedCommande && selectedClient) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex flex-col p-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setCurrentScreen('commande')}
+            className="p-2 bg-transparent border-none cursor-pointer"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1A1A1A">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Étiquette</h1>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center">
+          <div 
+            id="etiquette-print"
+            className="bg-white rounded-lg shadow-lg p-6 flex flex-col gap-3"
+            style={{ 
+              width: '378px',
+              height: '567px',
+            }}
+          >
+            <div className="text-center border-b border-gray-200 pb-3">
+              <div className="text-lg font-bold text-gray-900 tracking-wider uppercase">NFL_GESTION</div>
+            </div>
+            
+            <div className="text-center py-1">
+              <div className="text-2xl font-extrabold text-gray-900">{selectedCommande.id}</div>
+            </div>
+            
+            <div className="flex flex-col gap-1 py-2 border-t border-b border-gray-200">
+              <div className="text-sm font-bold text-gray-900">{selectedClient.prenom} {selectedClient.nom}</div>
+              <div className="text-xs text-gray-500">{selectedClient.email}</div>
+              {selectedClient.telephone && (
+                <div className="text-xs text-gray-500">{selectedClient.telephone}</div>
+              )}
+            </div>
+            
+            <div className="py-1">
+              <div className="text-xs font-semibold text-gray-400 uppercase mb-1">Travail</div>
+              <div className="text-sm font-bold text-gray-900">{selectedCommande.quantite}x {selectedCommande.type}</div>
+              <div className="text-xs text-gray-500">Format {selectedCommande.format}</div>
+            </div>
+            
+            {selectedCommande.lines && selectedCommande.lines.some(line => line.exportFormat) && (
+              <div className="py-2">
+                <div className="inline-block px-4 py-2 bg-gray-900 text-white rounded-lg">
+                  <div className="text-xs font-semibold uppercase tracking-wide">Export</div>
+                  <div className="text-lg font-extrabold">
+                    {[...new Set(selectedCommande.lines.filter(l => l.exportFormat).map(l => l.exportFormat.toUpperCase()))].join(' / ')}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="py-1">
+              <div className="text-xs font-semibold text-gray-400 uppercase mb-1">Date</div>
+              <div className="text-sm font-bold text-gray-900">{selectedCommande.dateCreation}</div>
+            </div>
+            
+            <div className="flex items-center justify-center mt-auto">
+              <div className="p-2 bg-white border-2 border-gray-900 rounded-lg">
+                <svg width="60" height="60" viewBox="0 0 100 100">
+                  <rect x="0" y="0" width="100" height="100" fill="white"/>
+                  <rect x="10" y="10" width="25" height="25" fill="black"/>
+                  <rect x="65" y="10" width="25" height="25" fill="black"/>
+                  <rect x="10" y="65" width="25" height="25" fill="black"/>
+                  <rect x="15" y="15" width="15" height="15" fill="white"/>
+                  <rect x="70" y="15" width="15" height="15" fill="white"/>
+                  <rect x="15" y="70" width="15" height="15" fill="white"/>
+                  <rect x="18" y="18" width="9" height="9" fill="black"/>
+                  <rect x="73" y="18" width="9" height="9" fill="black"/>
+                  <rect x="18" y="73" width="9" height="9" fill="black"/>
+                  <rect x="40" y="10" width="5" height="5" fill="black"/>
+                  <rect x="50" y="10" width="5" height="5" fill="black"/>
+                  <rect x="40" y="20" width="5" height="5" fill="black"/>
+                  <rect x="45" y="25" width="5" height="5" fill="black"/>
+                  <rect x="40" y="40" width="20" height="20" fill="black"/>
+                  <rect x="45" y="45" width="10" height="10" fill="white"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-6 max-w-md mx-auto w-full">
+          <button
+            onClick={() => window.print()}
+            className="w-full px-5 py-4 text-base font-bold bg-gray-900 text-white border-none rounded-full cursor-pointer lowercase transition-transform active:scale-98 hover:bg-gray-800 flex items-center justify-center gap-3"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+            </svg>
+            imprimer
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  return null;
+}
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(LaboGestion));
+        root.render(<LaboGestion />);
     </script>
 </body>
 </html>
